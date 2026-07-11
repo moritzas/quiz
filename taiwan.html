@@ -58,7 +58,7 @@ svg{width:100%;height:auto;display:block;cursor:pointer}
 /* 地圖高度不超過視窗：一般模式扣掉表頭，選擇題模式再扣掉選項區 */
 #map{max-height:calc(100vh - 100px)}
 #game.mc #map{max-height:calc(100vh - 220px);min-height:240px}
-.dist{fill:#ccc9be;stroke:#fff;stroke-width:.8;transition:fill .1s}
+.dist{fill:#ccc9be;stroke:#fff;stroke-width:.8;transition:fill .1s;vector-effect:non-scaling-stroke}
 .dist:hover{fill:#aaa79e}
 .dist.review-dim{fill:#e5e4df !important}
 .dist.result-g{fill:#97C459 !important}
@@ -146,6 +146,7 @@ svg{width:100%;height:auto;display:block;cursor:pointer}
       <div class="optrow" id="modeRow">
         <button class="opt sel" data-mode="click">🗺️ 地圖點選<small>依名稱點出位置</small></button>
         <button class="opt" data-mode="mc">📝 選擇題<small>看位置選出名稱</small></button>
+        <button class="opt" data-mode="review">🔍 複習地圖<small>看地名認位置</small></button>
       </div>
     </div>
     <div class="card">
@@ -261,9 +262,12 @@ function toast(msg,cls,ms){
 
 /* ── 開始畫面：模式選擇 ── */
 document.querySelectorAll('#modeRow .opt').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('#modeRow .opt').forEach(x=>x.classList.remove('sel'));
-  b.classList.add('sel'); mode=b.dataset.mode;
+  mode=b.dataset.mode; syncModeButtons();
 });
+function syncModeButtons(){
+  document.querySelectorAll('#modeRow .opt').forEach(x=>x.classList.toggle('sel',x.dataset.mode===mode));
+}
+function quizMode(){return mode==='mc'?'mc':'click';}
 
 /* ── 確認對話框 ── */
 let confirmCb=null;
@@ -299,7 +303,7 @@ function selectCounty(name){
   $('start').style.display='none';
   $('game').style.display='block';
   buildMap(name);
-  if(inReview) enterReview(); else startQuiz();
+  if(inReview||mode==='review') enterReview(); else startQuiz();
 }
 
 /* ── 建地圖 ── */
@@ -433,10 +437,11 @@ function startQuiz(subset){
   clearLabels();
   $('result-panel').style.display='none';
   $('map-stats').style.display='flex';
-  $('prompt-label').textContent=mode==='click'?'請點選':'閃爍的是？';
-  $('btnHint').style.display=mode==='click'?'':'none';
-  $('choices').style.display=mode==='mc'?'grid':'none';
-  $('game').classList.toggle('mc',mode==='mc');
+  const m=quizMode();
+  $('prompt-label').textContent=m==='click'?'請點選':'閃爍的是？';
+  $('btnHint').style.display=m==='click'?'':'none';
+  $('choices').style.display=m==='mc'?'grid':'none';
+  $('game').classList.toggle('mc',m==='mc');
   zoomReset();
   nextQ();
 }
@@ -448,7 +453,7 @@ function nextQ(){
   attempts=0;usedHint=false;locked=false;
   $('btnHint').disabled=false;
   const t=pool[idx];
-  if(mode==='click'){
+  if(quizMode()==='click'){
     if(autoZoomed){zoomReset();autoZoomed=false;}
     $('target').textContent=t;
   }else{
@@ -475,7 +480,7 @@ function flash(name,cls){
 
 function handleClick(name){
   if(inReview){reviewPeek(name);return;}
-  if(mode!=='click'||locked||!quizActive())return;
+  if(quizMode()!=='click'||locked||!quizActive())return;
   const t=pool[idx];
   if(name===t){
     locked=true;
@@ -502,7 +507,7 @@ function handleClick(name){
 }
 
 $('btnHint').onclick=()=>{
-  if(mode!=='click'||locked||!quizActive())return;
+  if(quizMode()!=='click'||locked||!quizActive())return;
   usedHint=true;$('btnHint').disabled=true;
   const t=pool[idx];
   clearTargets();pathEls[t].classList.add('target');
@@ -622,7 +627,10 @@ function setReviewBtn(state){
   else b.textContent='🗺 複習';
 }
 $('btnReview').onclick=()=>{
-  if(inReview){startQuiz();return;}
+  if(inReview){
+    if(mode==='review'){mode='click';syncModeButtons();}
+    startQuiz();return;
+  }
   if(quizHasProgress()){
     askConfirm('進入複習地圖？<small>目前測驗進度將不保留</small>','進入複習',enterReview);
     return;
@@ -638,8 +646,8 @@ function enterReview(){
   $('choices').style.display='none';
   $('result-panel').style.display='none';
   $('btnHint').style.display='none';
-  $('prompt-label').textContent='複習模式';
-  $('target').textContent='點地圖看名稱';
+  $('prompt-label').textContent='';
+  $('target').textContent='複習模式';
   Object.values(pathEls).forEach(el=>el.setAttribute('class','dist review-dim'));
   drawLabels('review');
   zoomReset();
